@@ -60,4 +60,4 @@ MANIFEST
 *.sln
 *.swp
 
-models/roberta
+models/roberta/
