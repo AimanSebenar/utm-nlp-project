@@ -30,7 +30,7 @@ import time
 from streamlit_option_menu import option_menu
 import joblib
 from sklearn.feature_extraction.text import TfidfVectorizer
-from transformers import RobertaTokenizer, RobertaForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 
 
@@ -111,6 +111,14 @@ def load_model_info():
 
 comparison_df, report_df, confusion_matrix = load_model_info()
 
+def load_roberta_from_hub(repo_id: str):
+    tokenizer = AutoTokenizer.from_pretrained(repo_id)
+    model = AutoModelForSequenceClassification.from_pretrained(repo_id)
+    model.eval()
+    model.to("cpu")
+    return tokenizer, model
+
+
 @st.cache_resource
 def load_models():
     import os
@@ -120,24 +128,35 @@ def load_models():
     model_dir = os.path.join(base, "models")
 
     trad_path = os.path.join(model_dir, "model.pkl")
-    adv_path = "C:/Users/Aiman/.vscode/nlp-project/models/roberta"
     vec_path = os.path.join(model_dir, "tfidf_vectorizer.pkl")
 
     trad_model = joblib.load(trad_path)
+    vectorizer = joblib.load(vec_path)
 
-    tokenizer = RobertaTokenizer.from_pretrained(adv_path)
-    adv_model = RobertaForSequenceClassification.from_pretrained(adv_path)
-    adv_model.eval()
-    adv_model.to("cpu")
+    repo_id = os.getenv("HF_ROBERTA_MODEL", "AimanSebenar/my-custom-roberta")
+    local_path = os.path.join(model_dir, "roberta")
+
+    try:
+        tokenizer, adv_model = load_roberta_from_hub(repo_id)
+    except Exception as exc:
+        st.warning(f"Falling back to the local RoBERTa files: {exc}")
+        tokenizer, adv_model = load_roberta_from_hub(local_path)
 
     if adv_model is None:
         raise RuntimeError(
-            "Could not load a Roberta transformer model from models/model.safetensors. "
-            "Make sure model.safetensors and the local config/tokenizer files exist in the models/ directory."
+            "Could not load the RoBERTa transformer model. "
+            "Set the HF_ROBERTA_MODEL environment variable to a Hugging Face model ID or ensure the local model files exist."
         )
 
-    vectorizer = joblib.load(vec_path)
     return trad_model, adv_model, vectorizer, tokenizer
+
+
+# Example upload snippet:
+# from huggingface_hub import HfApi
+# api = HfApi()
+# api.create_repo(repo_id="your-username/roberta-emotion", exist_ok=True)
+# tokenizer.push_to_hub("your-username/roberta-emotion")
+# model.push_to_hub("your-username/roberta-emotion")
 
 trad_model, adv_model, vectorizer, tokenizer = load_models()
 
