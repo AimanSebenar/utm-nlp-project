@@ -38,7 +38,7 @@ import torch
 # PAGE CONFIG
 # =========================
 st.set_page_config(
-    page_title="Emotion AI Dashboard",
+    page_title="Social Media Emotion Analyzer",
     page_icon="🧠",
     layout="wide"
 )
@@ -265,9 +265,10 @@ if selected == "Home":
 
     st.markdown("### Group Members")
     st.markdown("""
-    - Member 1: Full Name — Matric Number
-    - Member 2: Full Name — Matric Number
-    - Member 3: Full Name — Matric Number
+    - Muhammad Danish Zarif bin Syazrie Adley — A24AI0053 (Data Collection & Preprocessing)
+    - Chua Hong Nian — A24AI0023 (ML Model Training & Evaluation)
+    - Aiman Danish bin Muhamad Nasir — A24AI0009 (Streamlit App & Integration)
+    - Muhammad Zarul Hazman bin Abd Halim — A24AI0115 (Visualizations)
     """)
 
 # =========================
