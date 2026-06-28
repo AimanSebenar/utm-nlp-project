@@ -22,6 +22,7 @@
 # )
 
 import os
+import re
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -241,6 +242,62 @@ def predict_model2(text):
 
     return pred, probs.tolist(), latency
 
+
+def get_logistic_word_influence(text, predicted_label):
+    label_map = {0: 'Sadness', 1: 'Joy', 2: 'Love', 3: 'Anger', 4: 'Fear', 5: 'Surprise'}
+    class_index = next(index for index, label in label_map.items() if label == predicted_label)
+
+    transformed = vectorizer.transform([text])
+    feature_names = vectorizer.get_feature_names_out()
+    feature_index = {name: idx for idx, name in enumerate(feature_names)}
+
+    tokens = re.findall(r"[a-zA-Z']+", text.lower())
+    scored_terms = []
+
+    for token in tokens:
+        if token in feature_index:
+            idx = feature_index[token]
+            score = float(trad_model.coef_[class_index][idx] * transformed[0, idx])
+            if abs(score) > 1e-8:
+                scored_terms.append((token, score))
+
+    scored_terms = sorted(scored_terms, key=lambda item: abs(item[1]), reverse=True)
+    return scored_terms[:5]
+
+
+def get_roberta_word_influence(text, predicted_label):
+    label_map = {0: 'Sadness', 1: 'Joy', 2: 'Love', 3: 'Anger', 4: 'Fear', 5: 'Surprise'}
+    class_index = next(index for index, label in label_map.items() if label == predicted_label)
+
+    inputs = tokenizer(text, return_tensors='pt', truncation=True, padding=True)
+    inputs = {k: v.to('cpu') for k, v in inputs.items()}
+
+    with torch.no_grad():
+        outputs = adv_model(**inputs, output_hidden_states=True)
+
+    hidden_states = outputs.hidden_states[-1][0].cpu().numpy()
+    classifier_weight = adv_model.classifier.weight[class_index].detach().cpu().numpy()
+    token_ids = inputs['input_ids'][0].tolist()
+    attention_mask = inputs['attention_mask'][0].tolist()
+    token_scores = []
+
+    for idx, token_id in enumerate(token_ids):
+        if attention_mask[idx] == 0:
+            continue
+
+        token_text = tokenizer.convert_ids_to_tokens(int(token_id))
+        cleaned_token = token_text.replace('Ġ', '').replace('##', '')
+
+        if not cleaned_token or cleaned_token in {'[CLS]', '[SEP]', '[PAD]'}:
+            continue
+
+        score = float(np.dot(hidden_states[idx], classifier_weight))
+        if abs(score) > 1e-6:
+            token_scores.append((cleaned_token, score))
+
+    token_scores = sorted(token_scores, key=lambda item: abs(item[1]), reverse=True)
+    return token_scores[:5]
+
 # =========================
 # SIDEBAR
 # =========================
@@ -405,6 +462,31 @@ elif selected == "Text Analyzer":
 
         with col6:
             st.markdown(f"### {emotion_icons[pred2]} RoBERTa Emotion: **{pred2}**")
+
+        st.divider()
+        st.subheader("Word Influence from Input Text")
+        st.caption("Approximate word-level influence for each model based on the submitted text.")
+
+        lr_influence = get_logistic_word_influence(input_text, pred1)
+        roberta_influence = get_roberta_word_influence(input_text, pred2)
+
+        col7, col8 = st.columns(2)
+
+        with col7:
+            st.markdown("#### Logistic Regression (TF-IDF)")
+            if lr_influence:
+                for word, score in lr_influence:
+                    st.markdown(f"- **{word}**: {score:+.3f}")
+            else:
+                st.info("No strong word-level influence detected for this model.")
+
+        with col8:
+            st.markdown("#### RoBERTa")
+            if roberta_influence:
+                for word, score in roberta_influence:
+                    st.markdown(f"- **{word}**: {score:+.3f}")
+            else:
+                st.info("No strong word-level influence detected for this model.")
 
 # =========================
 # DATASET EXPLORER
