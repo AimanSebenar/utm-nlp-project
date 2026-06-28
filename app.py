@@ -64,6 +64,29 @@ div[data-testid="metric-container"] {
     padding: 10px;
     border-radius: 10px;
 }
+.visual-card {
+    background: linear-gradient(135deg, #1f2937, #111827);
+    border: 1px solid #374151;
+    border-radius: 16px;
+    padding: 1rem;
+    margin-bottom: 1.2rem;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+.visual-card img {
+    border-radius: 10px;
+}
+.visual-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f9fafb;
+    margin-top: 0.7rem;
+    margin-bottom: 0.25rem;
+}
+.visual-insight {
+    color: #cbd5e1;
+    font-size: 0.95rem;
+    line-height: 1.45;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -251,16 +274,17 @@ if selected == "Home":
     st.markdown("""
     - Many online conversations contain emotional signals that are hard to interpret at scale.
     - Businesses, researchers, and moderators need a faster way to identify the emotions behind text.
-    - Our project uses NLP and machine learning to classify text automatically and make this process more efficient.
+    - Governments need an overview of their newly implemented policies.
+    - Hence, this project uses NLP and machine learning to classify text to emotions automatically and make the process more efficient and productive.
     """)
 
     st.markdown("### How to use the app")
     st.markdown("""
     1. Open the Text Analyzer page from the sidebar.
-    2. Enter your own text or choose one of the sample messages.
-    3. Click the Run Prediction button.
-    4. Compare the predictions from the two models and review the confidence scores.
-    5. Explore the dataset and analytics pages for more insights.
+    2. Enter your own text or choose from the sample texts.
+    3. Click the "Run Prediction" button.
+    4. Compare the predictions from the traditional and advanced models, then review the results.
+    5. Explore the dataset used, data visualizations and model information pages for more insights.
     """)
 
     st.markdown("### Group Members")
@@ -304,7 +328,7 @@ elif selected == "Text Analyzer":
         col1, col2 = st.columns(2)
 
         with col1:
-            st.subheader("Logistic Regression")
+            st.subheader("Logistic Regression (TF-IDF)")
             st.metric("Prediction", pred1)
             st.metric("Confidence", f"{max(probs1)*100:.2f}%")
             st.metric("Latency", f"{latency1}s")
@@ -348,7 +372,7 @@ elif selected == "Text Analyzer":
                 df1,
                 x="Emotion",
                 y="Probability",
-                title="Logistic Regression Distribution"
+                title="Logistic Regression (TF-IDF) Distribution"
             )
             st.plotly_chart(fig1, use_container_width=True)
 
@@ -377,35 +401,10 @@ elif selected == "Text Analyzer":
         col5, col6 = st.columns(2)
 
         with col5:
-            st.markdown(f"### {emotion_icons[pred1]} Logistic Regression Emotion: **{pred1}**")
+            st.markdown(f"### {emotion_icons[pred1]} Logistic Regression (TF-IDF) Emotion: **{pred1}**")
 
         with col6:
             st.markdown(f"### {emotion_icons[pred2]} RoBERTa Emotion: **{pred2}**")
-
-# =========================
-# ANALYTICS PAGE
-# =========================
-elif selected == "Analytics":
-
-    st.subheader("Benchmark Metrics")
-
-    metrics = pd.DataFrame({
-        "Metric": ["Accuracy", "Precision", "Recall", "F1 Score"],
-        "Model 1": [0.88, 0.86, 0.84, 0.85],
-        "Model 2": [0.92, 0.90, 0.91, 0.90]
-    })
-
-    st.dataframe(metrics, use_container_width=True)
-
-    fig = px.bar(
-        metrics,
-        x="Metric",
-        y=["Model 1", "Model 2"],
-        barmode="group",
-        title="Model Performance Comparison"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
 
 # =========================
 # DATASET EXPLORER
@@ -449,6 +448,7 @@ elif selected == "Dataset Explorer":
 elif selected == "Visualizations":
 
     st.subheader("Project Visualizations")
+    st.caption("A clean overview of the main charts and plots generated for this project.")
 
     visuals_dir = os.path.join(os.path.dirname(__file__), "visualisations")
     image_files = sorted([
@@ -463,8 +463,15 @@ elif selected == "Visualizations":
         cols = st.columns(2)
         for index, image_path in enumerate(image_files):
             title = os.path.splitext(os.path.basename(image_path))[0].replace("_", " ").title()
+            placeholder_text = (
+                f"Placeholder insight: add a short interpretation of this chart here once the analysis is finalized."
+            )
             with cols[index % 2]:
-                st.image(image_path, caption=title, use_container_width=True)
+                st.markdown("<div class='visual-card'>", unsafe_allow_html=True)
+                st.image(image_path, use_container_width=True)
+                st.markdown(f"<div class='visual-title'>{title}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='visual-insight'>{placeholder_text}</div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================
 # MODEL INFO PAGE
@@ -481,7 +488,7 @@ elif selected == "Model Info":
     best_model = comparison_df.sort_values("Test F1-Score", ascending=False).iloc[0]["Model Pipeline Configuration"]
     st.success(f"Best-performing model based on test F1-score: {best_model}")
 
-    st.markdown("### Classification Report")
+    st.markdown("### RoBERTa Classification Report")
     st.dataframe(report_df, use_container_width=True)
 
     col1, col2, col3 = st.columns(3)
@@ -492,13 +499,19 @@ elif selected == "Model Info":
     with col3:
         st.metric("Weighted Avg F1", f"{report_df.loc['Weighted Avg', 'f1-score'] * 100:.2f}%")
 
-    st.markdown("### Confusion Matrix")
+    st.markdown("### RoBERTa Confusion Matrix")
     fig = px.imshow(
         confusion_matrix,
         labels=dict(x="Predicted Label", y="True Label", color="Count"),
         x=emotions,
         y=emotions,
-        title="Best Model Confusion Matrix"
+        title="Best Model Confusion Matrix",
+        color_continuous_scale="Blues"
+    )
+    fig.update_traces(
+        text=confusion_matrix,
+        texttemplate="%{text}",
+        textfont=dict(size=12, color="white")
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -506,4 +519,4 @@ elif selected == "Model Info":
 # FOOTER
 # =========================
 st.divider()
-st.caption("Built with Streamlit | Emotion Classification Model Benchmark Dashboard")
+st.caption("Built with Streamlit | Social Media Emotion Analyzer by Group Doomsday")
