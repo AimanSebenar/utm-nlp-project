@@ -276,7 +276,14 @@ def get_roberta_word_influence(text, predicted_label):
         outputs = adv_model(**inputs, output_hidden_states=True)
 
     hidden_states = outputs.hidden_states[-1][0].cpu().numpy()
-    classifier_weight = adv_model.classifier.weight[class_index].detach().cpu().numpy()
+    classifier = adv_model.classifier
+    if hasattr(classifier, "out_proj") and hasattr(classifier.out_proj, "weight"):
+        classifier_weight = classifier.out_proj.weight[class_index].detach().cpu().numpy()
+    elif hasattr(classifier, "weight"):
+        classifier_weight = classifier.weight[class_index].detach().cpu().numpy()
+    else:
+        raise AttributeError("The classifier head does not expose a usable weight tensor for explanation.")
+
     token_ids = inputs['input_ids'][0].tolist()
     attention_mask = inputs['attention_mask'][0].tolist()
     token_scores = []
@@ -349,7 +356,7 @@ if selected == "Home":
     - Muhammad Danish Zarif bin Syazrie Adley — A24AI0053 (Data Collection & Preprocessing)
     - Chua Hong Nian — A24AI0023 (ML Model Training & Evaluation)
     - Aiman Danish bin Muhamad Nasir — A24AI0009 (Streamlit App & Integration)
-    - Muhammad Zarul Hazman bin Abd Halim — A24AI0115 (Visualizations)
+    - Muhammad Zarul Hazman bin Abd Halim — A24AI0115 (Visualizations & Insights)
     """)
 
 # =========================
@@ -493,6 +500,22 @@ elif selected == "Text Analyzer":
 # =========================
 elif selected == "Dataset Explorer":
 
+    st.subheader("Dataset Overview")
+    st.caption("Overview of the training dataset used for emotion classification.")
+
+    overview_cols = st.columns(5)
+    overview_values = [
+        ("Total Posts", "16,000"),
+        ("Emotion Classes", "6"),
+        ("Avg Text Length", "97 characters"),
+        ("Avg Word Count", "19.2 words"),
+        ("Total Words", "306,661")
+    ]
+
+    for col, (label, value) in zip(overview_cols, overview_values):
+        with col:
+            st.metric(label, value)
+
     st.subheader("Dataset Samples")
 
     sample_display_df = pd.DataFrame({
@@ -545,9 +568,16 @@ elif selected == "Visualizations":
         cols = st.columns(2)
         for index, image_path in enumerate(image_files):
             title = os.path.splitext(os.path.basename(image_path))[0].replace("_", " ").title()
-            placeholder_text = (
-                f"Placeholder insight: add a short interpretation of this chart here once the analysis is finalized."
-            )
+            insight_map = {
+                "Emotion Dist": "This chart highlights the overall spread of emotions in the dataset. Joy and Sadness together account for more than 60 pct of all posts, while Surprise is the rarest class with approximately 572 samples. This class imbalance is a critical finding: it explains why models tend to achieve higher F1-scores on Joy and Sadness compared to Surprise and Love, and it motivates the use of weighted metrics for evaluation.",
+                "Emotion Wordcloud": "The word cloud emphasizes the most repeated words associated with the detected emotions. The Joy word cloud is dominated by positive words such as 'good', 'pretty', and 'inspired'. The Anger cloud surfaces adversarial vocabulary including 'angry', and 'hated'. The Sadness cloud features words like 'unhappy', and 'stressed'. These distinctions confirm that the dataset labels are linguistically consistent and that word-level features carry meaningful discriminative signal for emotion classification.",
+                "Freq Words": "This visualization shows the most frequently occurring words. The most frequent words in the dataset are 'day', 'people', 'think', 'life', and 'love’, closely related to emotional expression. The prominence of 'think' suggests that users in this dataset explicitly state their emotional state rather than expressing it implicitly, which makes the classification task more tractable for word-level models such as TF-IDF-based classifiers.",
+                "Model Perf": "This figure compares model performance. RoBERTa significantly outperforms all classical baselines, achieving 92.70% test accuracy and 92.68% F1-score. Word2Vec-based models perform noticeably worse than their TF-IDF counterparts, suggesting that simple averaged Word2Vec embeddings lose critical sequential and contextual information.",
+                "Overall Wordcloud": "This broader word cloud captures the dominant vocabulary used across the full corpus.",
+                "Roberta Confusion Matrix": "The confusion matrix reveals where the RoBERTa model correctly classified emotions and where it struggled. The diagonal cells are strongly dominant for Sadness, Joy, and Anger, indicating near-perfect classification for these classes. The most notable source of confusion is between Love and Joy: both classes share positive, affectionate vocabulary, making them difficult to separate even for a transformer model. A secondary confusion occurs between Surprise and Fear, which is linguistically plausible as both emotions involve unexpected or unfamiliar stimuli.",
+                "Text Length Dist": "This plot shows the distribution of text lengths. The character-length histogram reveals a right-skewed distribution: most posts fall within the 50–130 character range, consistent with Twitter-style social media writing. The box plot reveals that Sadness posts have a marginally higher upper quartile, suggesting that users tend to write more when expressing negative emotions such as sadness. Surprise posts are the shortest on average, reflecting the typically brief, exclamatory nature of surprised expressions."
+            }
+            placeholder_text = insight_map.get(title, f"This visualization presents key findings for {title} and can be expanded with deeper analysis later.")
             with cols[index % 2]:
                 st.markdown("<div class='visual-card'>", unsafe_allow_html=True)
                 st.image(image_path, use_container_width=True)
@@ -562,7 +592,13 @@ elif selected == "Model Info":
 
     st.subheader("Model Information and Performance")
 
-    st.markdown("The model details below are loaded directly from the files in the model_info folder.")
+    # st.markdown("The model details below are loaded directly from the files in the model_info folder.")
+
+    st.markdown("### Logistic Regression (TF-IDF)")
+    st.info("A lightweight classical model that uses TF-IDF features to represent words and applies multinomial logistic regression for emotion classification. It is fast, interpretable, and useful as a baseline comparison.")
+
+    st.markdown("### RoBERTa")
+    st.info("Robustly Optimized BERT Approach is a state-of-the-art transformer-based language model developed by Meta AI, building upon Google's BERT architecture. It captures context and word relationships in text. It generally delivers stronger performance on complex language patterns and is the stronger model in this project.")
 
     st.markdown("### Model Comparison Results")
     st.dataframe(comparison_df, use_container_width=True)
